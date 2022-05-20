@@ -8,6 +8,7 @@ Section = namedtuple("Section", "name default")
 NAME = "name"
 POWER = "power"
 TOUGHNESS = "toughness"
+LEGALITIES = "legalities"
 
 """
 MANACOST = "convertedManaCost"
@@ -52,6 +53,9 @@ class Card:
 
     def getNameSimple(self):
         return self._simplify(self.getName())
+
+    def getLegalities(self):
+        return self.cardinfo[LEGALITIES]
 
     def _extract(self, cardJson, cardInfoSections):
         cardinfo = dict()
