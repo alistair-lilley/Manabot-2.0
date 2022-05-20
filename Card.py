@@ -1,3 +1,9 @@
+import re, io, json
+from collections import namedtuple
+from PIL import Image
+
+
+Section = namedtuple("Section", "name default")
 
 NAME = "name"
 POWER = "power"
@@ -14,9 +20,12 @@ TYPE = "type"
 
 class Card:
 
-    def __init__(self, cardJson, cardImage, cardInfoSections):
+    # cardInfoSections is passed list of Section tuples for extracting from cardJson
+    def __init__(self, cardJsonPath, cardImageDir, cardInfoSections):
+        cardJson = json.load(open(cardJsonPath))
         self.cardinfo = self._extract(cardJson, cardInfoSections)
-        #self.image = Image.open(cardImage)
+        self.image = io.BytesIO()
+        Image.open(cardImageDir + "/" + self._simplify(cardJson[NAME]) + ".jpg").save(self.image, 'JPEG')
 
     def __lt__(self, otherCard):
         return self._compCardsAlphabetically(otherCard)
@@ -40,39 +49,21 @@ class Card:
     def getName(self):
         return self.cardinfo[NAME]
 
+    def getNameSimple(self):
+        return self._simplify(self.getName())
+
     def _extract(self, cardJson, cardInfoSections):
         cardinfo = dict()
         for section in cardInfoSections:
-            if section.section in cardJson:
-                if not cardJson[section.section]:
+            if section.name in cardJson:
+                if not cardJson[section.name]:
                     cardinfo[section.name] = section.default
                 else:
-                    cardinfo[section.name] = str(cardJson[section.section])
-            elif section.name == "P/T":
-                cardinfo[section.name] = cardinfo[POWER] + "/" + cardinfo[TOUGHNESS]
-        '''cardinfo[NAME] = cardJson[NAME]
-        cardinfo[MANACOST] = str(int(cardJson[MANACOST]))
-        if COLORS in cardJson and cardJson[COLORS]:
-            cardinfo[COLORS] = ''.join(cardJson[COLORS])
-        else:
-            cardinfo[COLORS] = 'C'
-        if COLORID in cardJson:
-            cardinfo[COLORID] = ''.join(cardJson[COLORID])
-        else:
-            cardinfo[COLORID] = 'C'
-        if POWER in cardJson:
-            cardinfo[POWER] = str(cardJson[POWER])
-            cardinfo[TOUGHNESS] = str(cardJson[TOUGHNESS])
-            cardinfo[PT] = str(cardJson[POWER]) + '/' + str(cardJson[TOUGHNESS])
-        else:
-            cardinfo[POWER] = "N/A"
-            cardinfo[TOUGHNESS] = "N/A"
-            cardinfo[PT] = "N/A"
-        if TEXT in cardJson:
-            cardinfo[TEXT] = cardJson[TEXT]
-        else:
-            cardinfo[TEXT] = "N/A"'''
+                    cardinfo[section.name] = str(cardJson[section.name])
         return cardinfo
 
     def retAllCardInfo(self):
-        return self.cardinfo  # , self.image
+        return self.cardinfo, self.image
+
+    def _simplify(self, string):
+        return re.sub(r'[\W\s]', '', string).lower()

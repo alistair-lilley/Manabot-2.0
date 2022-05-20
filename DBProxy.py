@@ -1,5 +1,6 @@
 
 import aiohttp, re, json, filetype, urllib, os, asyncio
+from PIL import Image
 
 NAME = 'name'
 IMAGE_PATH = 'cardimages'
@@ -57,15 +58,21 @@ class DBProxy:
             with open(f'{databaseDir}/{JSON_PATH}/{self._simplifyString(card[NAME])}.json', 'w') as jsonCardF:
                 json.dump(card, jsonCardF)
 
+    def _compressCardImage(self, cardpath, ext):
+        with Image.open(cardpath + "." + ext) as cardfile:
+            compressedCard = cardfile.resize((360,500))
+            compressedCard.save(cardpath + ".jpg")
+
     async def _downloadOneCardImage(self, cardName, cardID):
         try:
             wizardsurl = self._makeRemoteImageURL(cardID)
             cardOnline = await self.httpSession.get(wizardsurl)
             cardData = await cardOnline.read()
-            with open(self.databaseDir + "/" + IMAGE_PATH + "/"
-                      + self._simplifyString(cardName)
-                      + '.' + filetype.guess(cardData).extension, 'wb') as cardWrite:
+            cardpath = self.databaseDir + "/" + IMAGE_PATH + "/" + self._simplifyString(cardName)
+            ext = filetype.guess(cardData).extension
+            with open(cardpath + '.' + ext, 'wb') as cardWrite:
                 cardWrite.write(cardData)
+            self._compressCardImage(cardpath, ext)
         except:
             print("Failed to download card -- wizards down?")
 
@@ -83,9 +90,15 @@ class DBProxy:
             rulesfile.write(rulesText)
 
     async def _updateDB(self):
+        print("Downloading database...")
         jsonCards = self._splitUpJsonCards(await self._fetchDatabase(self.jsonUrl))
+        print("Database downloaded")
+        print("Saving database...")
         self._saveDatabase(self.databaseDir, jsonCards)
+        print("Database saved")
+        print("Downloading card images")
         await self._downloadCardImages(jsonCards)
+        print("Card images downloaded")
         await self._updateHash()
         await self._updateRules(self.rulesurl)
 
