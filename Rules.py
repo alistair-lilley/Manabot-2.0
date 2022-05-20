@@ -8,9 +8,9 @@ class Rules:
     def _makeRulesTree(self, rulesFile):
         rulesTree = RTree("root","")
         ruleLines = self._readInRules(rulesFile)
-        for line in ruleLines:
-            rulenum, ruletext = line.split(' ', 1)
-            rulesTree.insert(self._simplify(rulenum), ruletext)
+        for rule in ruleLines:
+            rulenum = rule.split(' ', 1)[0]
+            rulesTree.insert(self._simplify(rulenum), rule)
         return rulesTree
 
     def _readInRules(self, rulesFile):
@@ -43,11 +43,15 @@ class RTree:
 
     def insert(self, rulenum, rule):
         if not rulenum:
-            return
-        if rulenum[0] in self.children:
+            self.value = rule
+        elif rulenum[0] in self.children:
             self.children[rulenum[0]].insert(rulenum[1:], rule)
         else:
-            self.children[rulenum[0]] = RTree(rulenum[0], rule)
+            if len(rulenum) == 1:
+                self.children[rulenum[0]] = RTree(rulenum[0], rule)
+            else:
+                self.children[rulenum[0]] = RTree(rulenum[0], "")
+                self.children[rulenum[0]].insert(rulenum[1:], rule)
 
     def searchForRule(self, rulenum):
         if rulenum[0] in self.children:
@@ -57,9 +61,13 @@ class RTree:
         return "Rule not found"
 
     def getRule(self):
-        return self.value + self._getNextLevel()
+        return self.value + self.getNextLevel()
 
-    def _getNextLevel(self):
-        if not self.children:
-            return ""
-        return '\n' + '\n'.join([self.children[child].value for child in self.children.keys()])
+    def getNextLevel(self):
+        childrenValues = ""
+        for child in self.children:
+            if not self.children[child].value:
+                childrenValues += self.children[child].getNextLevel()
+            else:
+                childrenValues += '\n' + self.children[child].value
+        return childrenValues
