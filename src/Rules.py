@@ -35,7 +35,15 @@ class Rules:
 
 
 class RTree:
-
+    '''
+        RTree is a "rules tree". It is a tree structure for storing rules. It is
+        implemented as a prefix tree, in which each node is composed of the last
+        character of its "key" and its matching "value". For example, rule 100.1a
+        will be found at node a under 1 -> 0 -> 0 -> 1 (omitting punct) -> a, and
+        it will contain the text for the rule (including the rule number at the
+        beginning). Keywords are stored under the same root node in a similar
+        fashion.
+    '''
     def __init__(self, rulenum, rule):
         self.key = rulenum
         self.value = rule

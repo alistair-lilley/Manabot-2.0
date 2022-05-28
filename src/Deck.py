@@ -1,35 +1,45 @@
-from Card import Card
+from src.Card import Card
 from collections import namedtuple
 import xml.etree.ElementTree as ET
+import re
 
 ZIP = "zip"
 COD = "cod"
-MWDECK = "mwdeck"
+MWDECK = "mwDeck"
 TXT = "txt"
 RAW = "rawtext"
-IMAGEPATH = "/cardimages/"
-JSONPATH = "/jsoncards/"
-SAVEPATH = "/textfiles/"
+IMAGEPATH = "cardimages/"
+JSONPATH = "jsoncards/"
+SAVEPATH = "textfiles/"
 NAME = 'name'
 NUMBER = 'number'
 BANNED = 'banned'
 RESTRICTED = 'restricted'
+LEGAL = 'legal'
 
 CardPair = namedtuple("CardPair", "num cardobj")
 
 class Deck:
-
+    '''
+        A deck is a collection of cards (implemented as Card objects).
+    '''
     def __init__(self, deckFile, fileType, dataDir, infoSections, textDir):
         self.textdir = textDir
+        self.datadir = dataDir
         self.name = deckFile
         self.jsonpaths = dataDir + JSONPATH
         self.imagepaths = dataDir + IMAGEPATH
         self.savedir = dataDir + SAVEPATH
         self.infoSections = infoSections
+        formats = open('testdata/formats.txt')
+        self.default_legality_formats = {line.strip().split(',')[0] : line.strip().split(',')[1]
+                                         for line in formats}
+        formats.close()
         self.comments, self.mainboard, self.sideboard = self._parseDeck(deckFile, fileType)
 
     def _makeCard(self, card):
-        return Card(self.jsonpaths + card, self.imagepaths + card, self.infoSections)
+        card = self._simplify(card)
+        return Card(self.jsonpaths + card + '.json', self.imagepaths + card + '.jpg', self.infoSections)
 
     def _parseDeck(self, deckFile, fileType):
         if fileType == RAW:
@@ -41,7 +51,8 @@ class Deck:
         return comments, mainboard, sideboard
 
     def _fromFile(self, deckFile, fileType):
-        deckData = open(deckFile).read()
+        with open(self.datadir + "testdecks/" + deckFile + '.' + fileType) as read_deck_file:
+            deckData = read_deck_file.read()
         if fileType == COD:
             return self._fromcod(deckData)
         elif fileType in [MWDECK, TXT] :
@@ -59,7 +70,7 @@ class Deck:
         sideboard = {}
         for zone in codroot:
             if zone.tag in ['deckname','comments'] and zone.text:
-                comments.append(["//" + line for line in zone.text.split('\n')])
+                comments += ["//" + line for line in zone.text.split('\n')]
             elif zone.tag == "zone" and zone.attrib[NAME] == 'main':
                 mainboard = self._getBoard_cod(zone)
             elif zone.tag == "zone" and zone.attrib[NAME] == 'side':
@@ -86,15 +97,18 @@ class Deck:
         sideboard = {}
         lines = deckFile.split('\n')
         for line in lines:
+            if not line:
+                continue
             if line[0] == '/':
                 comments.append(line)
-            elif line[0].isdigit:
-                num, setid, card = line.split(' ', splitnum)
-                mainboard[card] = CardPair(num, self._makeCard(card))
             elif line[0] == 'S':
-                line = line[3:].strip()
-                num, setid, card = line.split(' ', splitnum)
+                # Cuts out the SB: and strips it so it's the same format as a non-sideboard line
+                line = line.split(' ', 1)[1].strip()
+                num, card = self._pull_num_card(line, splitnum)
                 sideboard[card] = CardPair(num, self._makeCard(card))
+            elif line[0].isdigit:
+                num, card = self._pull_num_card(line, splitnum)
+                mainboard[card] = CardPair(num, self._makeCard(card))
         return comments, mainboard, sideboard
 
     def _fromRaw(self, deckRaw):
@@ -103,7 +117,7 @@ class Deck:
     def _toText(self):
         deckText = ''
         if self.comments:
-            comments = ['// ' + comment for comment in self.comments]
+            comments = [comment for comment in self.comments]
             deckText += '\n'.join(comments) + '\n'
         mainboard = [self.mainboard[card].num + ' ' + self.mainboard[card].cardobj.getName() for card in self.mainboard]
         deckText += '\n'.join(mainboard)
@@ -118,30 +132,57 @@ class Deck:
             decktext = self._toText()
             saveDeckFile.write(decktext)
 
-    def _toBanText(self, bannedsets, restrictedsets):
+    def _toBanText(self, bannedsets, restrictedsets, legalsets, set_legalities):
         out = "**Banned cards**"
         for banset in bannedsets:
-            out += f'\n__{banset}__'
+            set_proper_name = set_legalities[banset]
+            out += f'\n__{set_proper_name}__'
             for card in bannedsets[banset]:
                 out += '\n' + card
         out += "\n**Restricted cards**"
         for restset in restrictedsets:
-            out += f'\n__{restset}__'
+            set_proper_name = set_legalities[restset]
+            out += f'\n__{set_proper_name}__'
             for card in restrictedsets[restset]:
                 out += '\n' + card
+        '''out += "\n**Legal cards**"
+        for legset in legalsets:
+            out += f'\n__{set_legalities[legset]}__'
+            for card in legalsets[legset]:
+                out += '\n' + card'''
         return out
 
-    def getBans(self):
+    def _get_bans_from_legalities(self, set_legalities):
         bannedCards = {}
         restrictedCards = {}
-        for card in {**self.mainboard, **self.sideboard}:
-            legalities = self.mainboard[card].cardobj.getLegalities()
+        legal_cards = {}
+        allboards = {**self.mainboard, **self.sideboard}
+        for card in allboards:
+            cardobj = allboards[card].cardobj
+            legalities = [legalset for legalset in cardobj.getLegalities() if legalset in list(set_legalities.keys())]
             for legality in legalities:
-                if legalities[legality] == BANNED:
-                    bannedCards[legality] = bannedCards.get(legality, []) \
-                                            + [self.mainboard[card].cardobj.getName()]
-                elif legalities[legality] == RESTRICTED:
-                    restrictedCards[legality] = restrictedCards.get(legality, []) \
-                                                + [self.mainboard[card].cardobj.getName()]
-        bans = self._toBanText(bannedCards, restrictedCards)
+                format_legality = self._simplify(cardobj.getLegality(legality))
+                if format_legality == BANNED:
+                    bannedCards[legality] = bannedCards.get(legality, []) + [cardobj.getName()]
+                elif format_legality == RESTRICTED:
+                    restrictedCards[legality] = restrictedCards.get(legality, []) + [cardobj.getName()]
+                elif format_legality == LEGAL:
+                    legal_cards[legality] = legal_cards.get(legality, []) + [cardobj.getName()]
+        bans = self._toBanText(bannedCards, restrictedCards, legal_cards, set_legalities)
         return bans
+
+    def get_bans(self, legalities=None):
+        if not legalities:
+            legalities = self.default_legality_formats
+        return self._get_bans_from_legalities(legalities)
+
+    def _simplify(self, string):
+        return re.sub(r'[\W\s]', '', string).lower()
+
+    # Pulls the number and the card from a line in a txt or mwDeck file line
+    def _pull_num_card(self, line, numsplit):
+        card_line_split = line.split(' ', numsplit)
+        num = card_line_split[0]
+        card = card_line_split[-1]
+        return num, card
+

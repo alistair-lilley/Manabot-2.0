@@ -21,13 +21,19 @@ LEGALITIES = "legalities"
 """
 
 class Card:
-
+    '''
+        A Card is a singular object that contains a selected section of the information
+        pertaining to that card, as well as its image as a PIL object. Two cards can
+        be compared to each other and evaluated as <, >, or == based on their names.
+    '''
     # cardInfoSections is passed list of Section tuples for extracting from cardJson
     def __init__(self, cardJsonPath, cardImageDir, cardInfoSections):
-        cardJson = json.load(open(cardJsonPath))
+        with open(cardJsonPath) as readCard:
+            cardJson = json.load(readCard)
         self.cardinfo = self._extract(cardJson, cardInfoSections)
         self.image = io.BytesIO()
-        Image.open(cardImageDir + "/" + self._simplify(cardJson[NAME]) + ".jpg").save(self.image, 'JPEG')
+        image = Image.open(cardImageDir)
+        image.save(self.image, 'JPEG')
 
     def __lt__(self, otherCard):
         return self._compCardsAlphabetically(otherCard)
@@ -51,11 +57,17 @@ class Card:
     def getName(self):
         return self.cardinfo[NAME]
 
+    def getShortName(self):
+        return self._simplify(self.cardinfo[NAME])
+
     def getNameSimple(self):
         return self._simplify(self.getName())
 
     def getLegalities(self):
         return self.cardinfo[LEGALITIES]
+
+    def getLegality(self, legality):
+        return self.cardinfo[LEGALITIES][legality]
 
     def _extract(self, cardJson, cardInfoSections):
         cardinfo = dict()
@@ -64,7 +76,10 @@ class Card:
                 if not cardJson[section.name]:
                     cardinfo[section.name] = section.default
                 else:
-                    cardinfo[section.name] = str(cardJson[section.name])
+                    if type(cardJson[section.name]) == dict:
+                        cardinfo[section.name] = cardJson[section.name]
+                    else:
+                        cardinfo[section.name] = str(cardJson[section.name])
         return cardinfo
 
     def retAllCardInfo(self):
