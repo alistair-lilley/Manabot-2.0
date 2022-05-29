@@ -1,41 +1,39 @@
-import re, string
+""" Rules object """
+from src.globals import simplify
+
 
 class Rules:
     
-    def __init__(self, rulesFile):
-        self.ruletree = self._makeRulesTree(rulesFile)
+    def __init__(self, rules_file):
+        self.ruletree = self._make_rules_tree(rules_file)
     
-    def _makeRulesTree(self, rulesFile):
-        rulesTree = RTree("root","")
-        ruleLines = self._readInRules(rulesFile)
-        for rule in ruleLines:
+    def _make_rules_tree(self, rules_file):
+        rules_tree = RTree("root","")
+        rule_lines = self._read_in_rules(rules_file)
+        for rule in rule_lines:
             rulenum = rule.split(' ', 1)[0]
-            rulesTree.insert(self._simplify(rulenum), rule)
-        return rulesTree
+            rules_tree.insert(simplify(rulenum), rule)
+        return rules_tree
 
-    def _readInRules(self, rulesFile):
-        parsedLines = []
-        currRule = ""
-        rflines = [line for line in open(rulesFile)]
+    def _read_in_rules(self, rules_file):
+        parsed_lines = []
+        curr_rule = ""
+        rflines = [line for line in open(rules_file)]
         for line in rflines:
             if not line.strip():
-                if currRule:
-                    parsedLines.append(currRule)
-                    currRule = ""
+                if curr_rule:
+                    parsed_lines.append(curr_rule)
+                    curr_rule = ""
             else:
-                currRule += line + " "
-        return parsedLines
+                curr_rule += line + " "
+        return parsed_lines
 
-    def retrieveRule(self, rulekw):
-        return self.ruletree.searchForRule(self._simplify(rulekw))
-
-    def _simplify(self, rulenum):
-        rulenum = re.sub(r'[\W\s]', '', rulenum).lower()
-        return ''.join([ch for ch in rulenum if ch not in string.punctuation])
+    def retrieve_rule(self, rulekw):
+        return self.ruletree.search_for_rule(simplify(rulekw))
 
 
 class RTree:
-    '''
+    """
         RTree is a "rules tree". It is a tree structure for storing rules. It is
         implemented as a prefix tree, in which each node is composed of the last
         character of its "key" and its matching "value". For example, rule 100.1a
@@ -43,7 +41,7 @@ class RTree:
         it will contain the text for the rule (including the rule number at the
         beginning). Keywords are stored under the same root node in a similar
         fashion.
-    '''
+    """
     def __init__(self, rulenum, rule):
         self.key = rulenum
         self.value = rule
@@ -61,21 +59,21 @@ class RTree:
                 self.children[rulenum[0]] = RTree(rulenum[0], "")
                 self.children[rulenum[0]].insert(rulenum[1:], rule)
 
-    def searchForRule(self, rulenum):
+    def search_for_rule(self, rulenum):
         if rulenum[0] in self.children:
             if len(rulenum) == 1:
-                return self.children[rulenum[0]].getRule()
-            return self.children[rulenum[0]].searchForRule(rulenum[1:])
+                return self.children[rulenum[0]].get_rule()
+            return self.children[rulenum[0]].search_for_rule(rulenum[1:])
         return "Rule not found"
 
-    def getRule(self):
-        return self.value + self.getNextLevel()
+    def get_rule(self):
+        return self.value + self.get_next_level()
 
-    def getNextLevel(self):
-        childrenValues = ""
+    def get_next_level(self):
+        children_values = ""
         for child in self.children:
             if not self.children[child].value:
-                childrenValues += self.children[child].getNextLevel()
+                children_values += self.children[child].get_next_level()
             else:
-                childrenValues += '\n' + self.children[child].value
-        return childrenValues
+                children_values += '\n' + self.children[child].value
+        return children_values

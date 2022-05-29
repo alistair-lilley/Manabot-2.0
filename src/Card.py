@@ -1,89 +1,72 @@
-import re, io, json
-from collections import namedtuple
+""" Card object """
+import io
+import json
 from PIL import Image
+from src.globals import NAME, LEGALITIES  # card data features
+from src.globals import simplify
 
-
-Section = namedtuple("Section", "name default")
-
-NAME = "name"
-POWER = "power"
-TOUGHNESS = "toughness"
-LEGALITIES = "legalities"
-
-"""
-MANACOST = "convertedManaCost"
-COLORS = "colors"
-COLORID = "colorIdentity"
-PT = "pt"
-TEXT = "text"
-TYPE = "type"
-LEGALITIES = "legalities"
-"""
 
 class Card:
-    '''
+    """
         A Card is a singular object that contains a selected section of the information
         pertaining to that card, as well as its image as a PIL object. Two cards can
         be compared to each other and evaluated as <, >, or == based on their names.
-    '''
+    """
     # cardInfoSections is passed list of Section tuples for extracting from cardJson
-    def __init__(self, cardJsonPath, cardImageDir, cardInfoSections):
-        with open(cardJsonPath) as readCard:
-            cardJson = json.load(readCard)
-        self.cardinfo = self._extract(cardJson, cardInfoSections)
+    def __init__(self, card_json_path, card_image_dir, card_info_sections):
+        with open(card_json_path) as read_card:
+            card_json = json.load(read_card)
+        self.cardinfo = self._extract(card_json, card_info_sections)
         self.image = io.BytesIO()
-        image = Image.open(cardImageDir)
+        image = Image.open(card_image_dir)
         image.save(self.image, 'JPEG')
 
-    def __lt__(self, otherCard):
-        return self._compCardsAlphabetically(otherCard)
+    def __lt__(self, other_card):
+        return self._comp_cards_alphabetically(other_card)
 
-    def __gt__(self, otherCard):
-        return not self._compCardsAlphabetically(otherCard)
+    def __gt__(self, other_card):
+        return not self._comp_cards_alphabetically(other_card)
 
-    def __eq__(self, otherCard):
-        return self.cardinfo[NAME] == otherCard.getName()
+    def __eq__(self, other_card):
+        return self.cardinfo[NAME] == other_card.get_name()
 
-    def _compCardsAlphabetically(self, otherCard):
+    def _comp_cards_alphabetically(self, other_card):
         thisname = self.cardinfo[NAME]
-        otherCardName = otherCard.getName()
-        for thisChar, otherChar in list(zip(thisname, otherCardName)):
-            if thisChar < otherChar:
+        other_card_name = other_card.get_name()
+        for this_char, other_char in list(zip(thisname, other_card_name)):
+            if this_char < other_char:
                 return True
-            elif thisChar > otherChar:
+            elif this_char > other_char:
                 return False
-        return len(thisname) < len(otherCardName)
+        return len(thisname) < len(other_card_name)
 
-    def getName(self):
+    def get_name(self):
         return self.cardinfo[NAME]
 
-    def getShortName(self):
-        return self._simplify(self.cardinfo[NAME])
+    def get_short_name(self):
+        return simplify(self.cardinfo[NAME])
 
-    def getNameSimple(self):
-        return self._simplify(self.getName())
+    def get_name_simple(self):
+        return simplify(self.get_name())
 
-    def getLegalities(self):
+    def get_legalities(self):
         return self.cardinfo[LEGALITIES]
 
-    def getLegality(self, legality):
+    def get_legality(self, legality):
         return self.cardinfo[LEGALITIES][legality]
 
-    def _extract(self, cardJson, cardInfoSections):
+    def _extract(self, card_json, card_info_sections):
         cardinfo = dict()
-        for section in cardInfoSections:
-            if section.name in cardJson:
-                if not cardJson[section.name]:
+        for section in card_info_sections:
+            if section.name in card_json:
+                if not card_json[section.name]:
                     cardinfo[section.name] = section.default
                 else:
-                    if type(cardJson[section.name]) == dict:
-                        cardinfo[section.name] = cardJson[section.name]
+                    if type(card_json[section.name]) == dict:
+                        cardinfo[section.name] = card_json[section.name]
                     else:
-                        cardinfo[section.name] = str(cardJson[section.name])
+                        cardinfo[section.name] = str(card_json[section.name])
         return cardinfo
 
-    def retAllCardInfo(self):
+    def ret_all_card_info(self):
         return self.cardinfo, self.image
-
-    def _simplify(self, string):
-        return re.sub(r'[\W\s]', '', string).lower()
